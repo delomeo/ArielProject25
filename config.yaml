@@ -15,3 +15,6 @@ DO_THE_NL_CORR: False
 DO_DARK: True
 DO_FLAT: True
 TIME_BINNING: 30
+INTERVAL: [0, 1]  # Default interval for indexing 
+CUT_INF: 39
+CUT_SUP: 321
