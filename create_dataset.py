@@ -8,10 +8,16 @@ from astropy.stats import sigma_clip
 from data_transforms import *
 from tqdm import tqdm
 
-path_folder = '/kaggle/input/ariel-data-challenge-2025/' # path to the folder containing the data
-path_out = '/kaggle/working/data_light_raw/' # path to the folder to store the light data
-output_dir = '/kaggle/working/data_light_raw/' # path for the output directory
+# path_folder = '/kaggle/input/ariel-data-challenge-2025/' # path to the folder containing the data
+# path_out = '/kaggle/working/data_light_raw/' # path to the folder to store the light data
+# output_dir = '/kaggle/working/data_light_raw/' # path for the output directory
 
+path_folder = './data/'
+path_out = './data_light_raw/' # path to the folder containing the data
+output_dir = './data_light_raw/' # path for the output directory
+if not os.path.exists(path_out):
+    os.makedirs(path_out)
+    print(f"Directory {path_out} created.")
 CHUNKS_SIZE = 1
 
 @cuda.jit
