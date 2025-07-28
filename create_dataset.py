@@ -15,14 +15,6 @@ from data_preprocessing import (ADC_convert, mask_hot_dead, apply_linear_corr, c
 # path_out = '/kaggle/working/data_light_raw/' # path to the folder to store the light data
 # output_dir = '/kaggle/working/data_light_raw/' # path for the output directory
 
-path_folder = './data/'
-path_out = './data_light_raw/' # path to the folder containing the data
-output_dir = './data_light_raw/' # path for the output directory
-if not os.path.exists(path_out):
-    os.makedirs(path_out)
-    print(f"Directory {path_out} created.")
-CHUNKS_SIZE = 1
-
 @cuda.jit
 def split_chunks_kernel(index, chunks, chunk_size):
     i = cuda.grid(1)
