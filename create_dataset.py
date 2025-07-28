@@ -12,7 +12,7 @@ from tqdm import tqdm
 from data_preprocessing import (ADC_convert, mask_hot_dead, apply_linear_corr, clean_dark, get_cds, bin_obs, correct_flat_field) 
 
 def get_index(files, chunk_size, interval):
-    start, stop = interval
+    start, stop = interval[0], interval[1]
     idxs = []
     for f in files[start:stop]:
         name = os.path.basename(f)
@@ -80,7 +80,7 @@ def main():
 
     files = glob.glob(os.path.join(path_folder + 'train/', '*/*'))
 
-    index = get_index(files,CHUNKS_SIZE)  ## 22 is hardcoded here but please feel free to remove it if you want to do it for the entire dataset
+    index = get_index(files, CHUNKS_SIZE, INTERVAL)  
 
     axis_info = pd.read_parquet(os.path.join(path_folder,'axis_info.parquet'))
     DO_MASK = True
