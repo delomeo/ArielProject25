@@ -1,0 +1,17 @@
+# config.yaml
+# Configuration for folder paths and output directories
+PATH_FOLDER: './data/'
+PATH_OUT: './data_light_raw/' # path to the folder containing the data
+OUTPUT_DIR: './data_light_raw/' # path for the output directory
+
+# path_folder = '/kaggle/input/ariel-data-challenge-2025/' # path to the folder containing the data
+# path_out = '/kaggle/working/data_light_raw/' # path to the folder to store the light data
+# output_dir = '/kaggle/working/data_light_raw/' # path for the output directory
+
+# Configs for data handling
+CHUNKS_SIZE: 1
+DO_MASK: True
+DO_THE_NL_CORR: False
+DO_DARK: True
+DO_FLAT: True
+TIME_BINNING: 30
