@@ -68,6 +68,7 @@ def main():
     DO_DARK = config.get('DO_DARK', True)
     DO_FLAT = config.get('DO_FLAT', True)
     TIME_BINNING = config.get('TIME_BINNING', None) # TODO: If none, do not use time binning, else use the value provided (default is 30)
+    INTERVAL = config.get('INTERVAL', [0, 1])  # Default interval for indexing (Default loads from 0 to 1, but can be changed in config.yaml)
 
 
 def main():
@@ -83,13 +84,8 @@ def main():
     index = get_index(files, CHUNKS_SIZE, INTERVAL)  
 
     axis_info = pd.read_parquet(os.path.join(path_folder,'axis_info.parquet'))
-    DO_MASK = True
-    DO_THE_NL_CORR = False
-    DO_DARK = True
-    DO_FLAT = True
-    TIME_BINNING = True
 
-    cut_inf, cut_sup = 39, 321
+    cut_inf, cut_sup = config.get('CUT_INF', 39), config.get('CUT_SUP', 321)
     l = cut_sup - cut_inf
 
     for n, index_chunk in enumerate(tqdm(index)):
