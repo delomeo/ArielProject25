@@ -23,32 +23,16 @@ def split_chunks_kernel(index, chunks, chunk_size):
         pos = i % chunk_size
         chunks[group, pos] = index[i]
 
-def get_index(files, CHUNKS_SIZE):
-    index = []
-    for file in files:
-        file_name = file.split('/')[-1]
-        if file_name.startswith('AIRS-CH0_signal_0.parquet'):
-            file_index = os.path.basename(os.path.dirname(file))
-            index.append(int(file_index))
-    
-    index = np.array(sorted(index)).astype(np.int32)
-    
-    num_chunks = max(1, len(index) // CHUNKS_SIZE)
-    pad_len = num_chunks * CHUNKS_SIZE - len(index)
-    if pad_len > 0:
-        index = np.pad(index, (0, pad_len), constant_values=-1)
-
-    chunks_gpu = np.full((num_chunks, CHUNKS_SIZE), -1, dtype=np.int32)
-    d_index = cuda.to_device(index)
-    d_chunks = cuda.to_device(chunks_gpu)
-
-    threads_per_block = 256
-    blocks = (index.size + threads_per_block - 1) // threads_per_block
-
-    split_chunks_kernel[blocks, threads_per_block](d_index, d_chunks, CHUNKS_SIZE)
-    chunks = d_chunks.copy_to_host()
-
-    return [chunk[chunk != -1] for chunk in chunks]
+def get_index(files, chunk_size, interval):
+    start, stop = interval
+    idxs = []
+    for f in files[start:stop]:
+        name = os.path.basename(f)
+        parts = name.split('_')
+        if parts[:3] == ["AIRS-CH0","signal","0.parquet"]:
+            idxs.append(int(os.path.basename(os.path.dirname(f))))
+    idxs = cp.sort(cp.array(idxs))
+    return cp.array_split(idxs, max(1, len(idxs)//chunk_size))
 
 
 
