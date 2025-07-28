@@ -1,3 +1,4 @@
 /data/
 kaggle
 download_data.py
+/__pycache__/
