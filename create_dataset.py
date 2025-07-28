@@ -2,6 +2,7 @@
 import os
 import glob 
 
+from typing import List, Tuple, Optional, Dict
 import cupy as cp
 from cupy import cuda
 import numpy as np
@@ -11,7 +12,7 @@ import yaml
 from tqdm import tqdm
 from data_preprocessing import (ADC_convert, mask_hot_dead, apply_linear_corr, clean_dark, get_cds, bin_obs, correct_flat_field) 
 
-def get_index(files, chunk_size, interval):
+def get_index(files, chunk_size, interval) -> cp.ndarray:
     start, stop = interval[0], interval[1]
     idxs = []
     for f in files[start:stop]:
@@ -23,10 +24,7 @@ def get_index(files, chunk_size, interval):
     return cp.array_split(idxs, max(1, len(idxs)//chunk_size))
 
 
-
-
-
-def load_data (file, chunk_size, nb_files) : 
+def load_data (file, chunk_size, nb_files) -> cp.ndarray: 
     data0 = cp.load(file + '_0.npy')
     data_all = cp.zeros((nb_files*chunk_size, data0.shape[1], data0.shape[2], data0.shape[3]))
     data_all[:chunk_size] = data0
@@ -34,12 +32,12 @@ def load_data (file, chunk_size, nb_files) :
         data_all[i*chunk_size:(i+1)*chunk_size] = cp.load(file + '_{}.npy'.format(i))
     return data_all 
 
-def load_config(name='config.yaml'):
+def load_config(name='config.yaml') -> Dict:
     with open('config.yaml', 'r') as file:
         config = yaml.safe_load(file)
     return config
 
-def create_dir(path):
+def create_dir(path) -> None:
     if not os.path.exists(path):
         os.makedirs(path)
         print(f"Directory {path} created.")
@@ -51,6 +49,7 @@ def main():
     
     global path_folder, path_out, output_dir
 
+    ## CONFIGURATION ##
     config = load_config()
 
     # Fetch paths from config
@@ -71,7 +70,6 @@ def main():
     INTERVAL = config.get('INTERVAL', [0, 1])  # Default interval for indexing (Default loads from 0 to 1, but can be changed in config.yaml)
 
 
-def main():
     ## START OF THE MAIN CODE ##
     if not os.path.exists(path_out):
         os.makedirs(path_out)
