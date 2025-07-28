@@ -15,14 +15,6 @@ from data_preprocessing import (ADC_convert, mask_hot_dead, apply_linear_corr, c
 # path_out = '/kaggle/working/data_light_raw/' # path to the folder to store the light data
 # output_dir = '/kaggle/working/data_light_raw/' # path for the output directory
 
-@cuda.jit
-def split_chunks_kernel(index, chunks, chunk_size):
-    i = cuda.grid(1)
-    if i < index.size:
-        group = i // chunk_size
-        pos = i % chunk_size
-        chunks[group, pos] = index[i]
-
 def get_index(files, chunk_size, interval):
     start, stop = interval
     idxs = []
