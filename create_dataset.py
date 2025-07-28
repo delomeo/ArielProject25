@@ -50,12 +50,12 @@ cut_inf, cut_sup = 39, 321
 l = cut_sup - cut_inf
 
 for n, index_chunk in enumerate(tqdm(index)):
-    AIRS_CH0_clean = np.zeros((CHUNKS_SIZE, 11250, 32, l))
-    FGS1_clean = np.zeros((CHUNKS_SIZE, 135000, 32, 32))
+    AIRS_CH0_clean = cp.zeros((CHUNKS_SIZE, 11250, 32, l))
+    FGS1_clean = cp.zeros((CHUNKS_SIZE, 135000, 32, 32))
     
     for i in range (CHUNKS_SIZE) : 
         df = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/AIRS-CH0_signal_0.parquet'))
-        signal = df.values.astype(np.float64).reshape((df.shape[0], 32, 356))
+        signal = df.values.astype(cp.float64).reshape((df.shape[0], 32, 356))
 
         signal = ADC_convert(signal,)
         dt_airs = axis_info['AIRS-CH0-integration_time'].dropna().values
@@ -64,10 +64,10 @@ for n, index_chunk in enumerate(tqdm(index)):
         del signal, df
         
         # CLEANING THE DATA: AIRS
-        flat = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/AIRS-CH0_calibration_0/flat.parquet')).values.astype(np.float64).reshape((32, 356))[:, cut_inf:cut_sup]
-        dark = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/AIRS-CH0_calibration_0/dark.parquet')).values.astype(np.float64).reshape((32, 356))[:, cut_inf:cut_sup]
-        dead_airs = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/AIRS-CH0_calibration_0/dead.parquet')).values.astype(np.float64).reshape((32, 356))[:, cut_inf:cut_sup]
-        linear_corr = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/AIRS-CH0_calibration_0/linear_corr.parquet')).values.astype(np.float64).reshape((6, 32, 356))[:, :, cut_inf:cut_sup]
+        flat = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/AIRS-CH0_calibration_0/flat.parquet')).values.astype(cp.float64).reshape((32, 356))[:, cut_inf:cut_sup]
+        dark = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/AIRS-CH0_calibration_0/dark.parquet')).values.astype(cp.float64).reshape((32, 356))[:, cut_inf:cut_sup]
+        dead_airs = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/AIRS-CH0_calibration_0/dead.parquet')).values.astype(cp.float64).reshape((32, 356))[:, cut_inf:cut_sup]
+        linear_corr = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/AIRS-CH0_calibration_0/linear_corr.parquet')).values.astype(cp.float64).reshape((6, 32, 356))[:, :, cut_inf:cut_sup]
         
         if DO_MASK:
             chopped_signal = mask_hot_dead(chopped_signal, dead_airs, dark)
@@ -88,20 +88,20 @@ for n, index_chunk in enumerate(tqdm(index)):
         del dark
         
         df = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/FGS1_signal_0.parquet'))
-        fgs_signal = df.values.astype(np.float64).reshape((df.shape[0], 32, 32))
+        fgs_signal = df.values.astype(cp.float64).reshape((df.shape[0], 32, 32))
 
         
         fgs_signal = ADC_convert(fgs_signal, )
-        dt_fgs1 = np.ones(len(fgs_signal))*0.1
+        dt_fgs1 = cp.ones(len(fgs_signal))*0.1
         dt_fgs1[1::2] += 0.1
         chopped_FGS1 = fgs_signal
         del fgs_signal, df
         
         # CLEANING THE DATA: FGS1
-        flat = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/FGS1_calibration_0/flat.parquet')).values.astype(np.float64).reshape((32, 32))
-        dark = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/FGS1_calibration_0/dark.parquet')).values.astype(np.float64).reshape((32, 32))
-        dead_fgs1 = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/FGS1_calibration_0/dead.parquet')).values.astype(np.float64).reshape((32, 32))
-        linear_corr = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/FGS1_calibration_0/linear_corr.parquet')).values.astype(np.float64).reshape((6, 32, 32))
+        flat = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/FGS1_calibration_0/flat.parquet')).values.astype(cp.float64).reshape((32, 32))
+        dark = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/FGS1_calibration_0/dark.parquet')).values.astype(cp.float64).reshape((32, 32))
+        dead_fgs1 = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/FGS1_calibration_0/dead.parquet')).values.astype(cp.float64).reshape((32, 32))
+        linear_corr = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/FGS1_calibration_0/linear_corr.parquet')).values.astype(cp.float64).reshape((6, 32, 32))
         
         if DO_MASK:
             chopped_FGS1 = mask_hot_dead(chopped_FGS1, dead_fgs1, dark)
@@ -140,8 +140,8 @@ for n, index_chunk in enumerate(tqdm(index)):
     del AIRS_cds, FGS1_cds
     
     for i in range (CHUNKS_SIZE):
-        flat_airs = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/AIRS-CH0_calibration_0/flat.parquet')).values.astype(np.float64).reshape((32, 356))[:, cut_inf:cut_sup]
-        flat_fgs = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/FGS1_calibration_0/flat.parquet')).values.astype(np.float64).reshape((32, 32))
+        flat_airs = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/AIRS-CH0_calibration_0/flat.parquet')).values.astype(cp.float64).reshape((32, 356))[:, cut_inf:cut_sup]
+        flat_fgs = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/FGS1_calibration_0/flat.parquet')).values.astype(cp.float64).reshape((32, 32))
         if DO_FLAT:
             corrected_AIRS_cds_binned = correct_flat_field(flat_airs,dead_airs, AIRS_cds_binned[i])
             AIRS_cds_binned[i] = corrected_AIRS_cds_binned
@@ -151,22 +151,23 @@ for n, index_chunk in enumerate(tqdm(index)):
             pass
 
     ## save data
-    np.save(os.path.join(path_out, 'AIRS_clean_train_{}.npy'.format(n)), AIRS_cds_binned)
-    np.save(os.path.join(path_out, 'FGS1_train_{}.npy'.format(n)), FGS1_cds_binned)
+    cp.save(os.path.join(path_out, 'AIRS_clean_train_{}.npy'.format(n)), AIRS_cds_binned)
+    cp.save(os.path.join(path_out, 'FGS1_train_{}.npy'.format(n)), FGS1_cds_binned)
     del AIRS_cds_binned
     del FGS1_cds_binned
 
 
 def load_data (file, chunk_size, nb_files) : 
-    data0 = np.load(file + '_0.npy')
-    data_all = np.zeros((nb_files*chunk_size, data0.shape[1], data0.shape[2], data0.shape[3]))
+    data0 = cp.load(file + '_0.npy')
+    data_all = cp.zeros((nb_files*chunk_size, data0.shape[1], data0.shape[2], data0.shape[3]))
     data_all[:chunk_size] = data0
     for i in range (1, nb_files) : 
-        data_all[i*chunk_size:(i+1)*chunk_size] = np.load(file + '_{}.npy'.format(i))
+        data_all[i*chunk_size:(i+1)*chunk_size] = cp.load(file + '_{}.npy'.format(i))
     return data_all 
 
 data_train = load_data(path_out + 'AIRS_clean_train', CHUNKS_SIZE, len(index)) 
 data_train_FGS = load_data(path_out + 'FGS1_train', CHUNKS_SIZE, len(index))
 
-np.save('./' + 'data_train.npy', data_train)
-np.save('./' + 'data_train_FGS.npy', data_train)
+cp.save('./' + 'data_train.npy', data_train)
+cp.save('./' + 'data_train_FGS.npy', data_train)
+
