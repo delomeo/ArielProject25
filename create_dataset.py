@@ -6,6 +6,8 @@ import cupy as cp
 from cupy import cuda
 import numpy as np
 import pandas as pd
+from yaml import safe_load
+import yaml 
 
 from tqdm import tqdm
 from data_preprocessing import (ADC_convert, mask_hot_dead, apply_linear_corr, clean_dark, get_cds, bin_obs, correct_flat_field) 
