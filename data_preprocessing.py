@@ -93,11 +93,20 @@ def apply_linear_corr(linear_corr: cp.ndarray, clean_signal: cp.ndarray) -> cp.n
     This replaces the slow Python/Numpy loop with vectorized CuPy operations.
     Assumes linear_corr is (1, coeffs, y, x) and clean_signal is (time, y, x).
     '''
+    # Remove the batch dimension from linear_corr (shape becomes (coeffs, y, x))
+    linear_corr = linear_corr[0]  # Shape: (coeffs, y, x)
 
+    # Flip coefficients on the first axis (coeffs) for proper order
+    linear_corr = cp.flip(linear_corr, axis=0)  # Shape: (coeffs, y, x)
 
+    # Initialize the polynomial result with the highest-order coefficient
+    result = linear_corr[0][cp.newaxis, :, :]  # Shape: (1, y, x)
 
-    return corrected_signal
+    # Iteratively compute the polynomial using Horner's method
+    for coeff in linear_corr[1:]:
+        result = result * clean_signal + coeff[cp.newaxis, :, :]  # Broadcast and accumulate
 
+    return result
 
 # STEP 4
 def clean_dark(signal: cp.ndarray, dead: cp.ndarray, dark: cp.ndarray, dt: cp.ndarray) -> cp.ndarray:
