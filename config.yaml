@@ -10,11 +10,12 @@ OUTPUT_DIR: './data_light_raw/' # path for the output directory
 
 # Configs for data handling
 CHUNKS_SIZE: 1
+TRAIN_TEST: 'train'
 DO_MASK: True
-DO_THE_NL_CORR: False
+DO_THE_NL_CORR: True
 DO_DARK: True
 DO_FLAT: True
 TIME_BINNING: 30
-INTERVAL: [0, 1]  # Default interval for indexing 
+INTERVAL: [0, 3]  # Default interval for indexing 
 CUT_INF: 39
 CUT_SUP: 321
