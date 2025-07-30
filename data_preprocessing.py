@@ -74,65 +74,16 @@ def ADC_convert(signal: cp.ndarray, gain: float = 0.4369, offset: float = -1000)
 
 # STEP 2
 def mask_hot_dead(signal: cp.ndarray, dead: cp.ndarray, dark: cp.ndarray, sigma: float = 5.0, maxiters: int = 5, dynamic_clip: bool = True) -> cp.ndarray:
-    """
-    Applies dead pixel mask, static hot pixel mask (from dark frame), and optionally
-    dynamic hot pixel masking (time-series sigma clipping) using CuPy.
-    Masked pixels are set to NaN.
 
-    signal       : 3D CuPy array (time, y, x)
-    dead         : 2D CuPy bool mask (y, x)
-    dark         : 2D CuPy array (y, x) for static hot-pixel detection
-    sigma        : sigma threshold for clipping
-    maxiters     : max iterations for clipping
-    dynamic_clip : if True, also sigma-clip each pixel time-series
-
-    Returns a cp.ndarray where dead/hot pixels are set to cp.nan.
-    """
-    nt, ny, nx = signal.shape
-
-    # 1) static hot pixels from dark (using the GPU sigma_clip)
-    # Ravel dark, clip, then reshape to 2D
-    # The sigma_clip_gpu returns NaNs, so we need to create a boolean mask from it
-    hot_clipped_dark = sigma_clip_gpu(dark.ravel(), sigma, maxiters)
-    hot2d_mask = cp.isnan(hot_clipped_dark).reshape((ny, nx)) # True where hot pixels are
-
-    # 2) optional dynamic clips per pixel time-series
-    if dynamic_clip:
-        # Initialize an empty boolean array for dynamic hot pixels on GPU
-        hot_dyn = cp.zeros((nt, ny, nx), dtype=cp.bool_)
-
-        # Iterating over pixels on CPU to launch per-pixel GPU operations.
-        # This loop is still on the CPU, but the `sigma_clip_gpu` function
-        # will execute on the GPU for each pixel's time series.
-        # This is a common pattern for applying per-pixel/per-column operations on GPU.
-        for i in range(ny):
-            for j in range(nx):
-                ts_gpu = signal[:, i, j] # Extract time series for this pixel on GPU
-                
-                # Apply sigma clipping to the time series
-                clipped_ts = sigma_clip_gpu(ts_gpu, sigma, maxiters)
-                
-                # Mark pixels in hot_dyn where clipped_ts is NaN
-                hot_dyn[:, i, j] = cp.isnan(clipped_ts)
-    else:
-        hot_dyn = cp.zeros((nt, ny, nx), dtype=cp.bool_)
-
-    if dead.dtype != cp.bool_:
-        dead_mask = (dead != 0) # Assuming non-zero means dead
-    else:
-        dead_mask = dead
-    
-    dead3d = cp.broadcast_to(dead_mask, (nt, ny, nx))
-    hot3d  = cp.broadcast_to(hot2d_mask, (nt, ny, nx))
-
-    # 4) combine all masks on GPU using bitwise OR
-    combined_mask = dead3d | hot3d | hot_dyn
-
-    # 5) apply mask → fill with NaN
-    out = signal.astype(cp.float64).copy()
-    out[combined_mask] = cp.nan # Set masked pixels to NaN on GPU
-
-    return out
+    hot = sigma_clip_gpu(dark, sigma, maxiters)
+    hot = cp.tile(hot, (signal.shape[0], 1, 1))
+    dead = cp.tile(dead, (signal.shape[0], 1, 1))
+    # print(hot.shape)
+    print(dead.shape) 
+    print(signal.shape)
+    signal = cp.where(dead, cp.nan, signal)  # Set dead pixels to NaN
+    signal = cp.where(hot, cp.nan, signal)  # Set hot pixels to NaN
+    return signal
 
 
 # STEP 3
