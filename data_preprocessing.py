@@ -117,8 +117,6 @@ def mask_hot_dead(signal: cp.ndarray, dead: cp.ndarray, dark: cp.ndarray, sigma:
     else:
         hot_dyn = cp.zeros((nt, ny, nx), dtype=cp.bool_)
 
-    # 3) broadcast static masks to 3D. Ensure dead is also boolean.
-    # Convert dead to boolean mask if it's not already (e.g., 0/1 values)
     if dead.dtype != cp.bool_:
         dead_mask = (dead != 0) # Assuming non-zero means dead
     else:
@@ -142,37 +140,10 @@ def apply_linear_corr(linear_corr: cp.ndarray, clean_signal: cp.ndarray) -> cp.n
     '''
     Applies non-linearity correction using CuPy.
     This replaces the slow Python/Numpy loop with vectorized CuPy operations.
-    Assumes linear_corr is (coeffs, y, x) and clean_signal is (time, y, x).
+    Assumes linear_corr is (1, coeffs, y, x) and clean_signal is (time, y, x).
     '''
-    # Flip coefficients on the first axis (coeffs)
-    linear_corr_flipped = cp.flip(linear_corr, axis=0) # (order, y, x)
 
-    # Get polynomial order (number of coefficients - 1)
-    poly_order = linear_corr_flipped.shape[0] - 1
 
-    # Initialize corrected_signal with the constant term (coefficient for x^0)
-    # This is linear_corr_flipped[-1, :, :] or linear_corr_flipped[0, :, :] if flipped
-    # After flipping, linear_corr_flipped[0] corresponds to the highest power.
-    # We want the lowest power coefficient for the initial term.
-    # If linear_corr_flipped[k] is coefficient for x^k, then linear_corr_flipped[0] is for x^order.
-    # The original description says inverse polynomial function, implying that
-    # linear_corr are coeffs for $a_0 + a_1 x + a_2 x^2 + ...$ or similar.
-    # Assuming `np.poly1d` in the original took `linear_corr[:, x, y]` where `linear_corr[0,x,y]`
-    # was the highest order coefficient. `np.flip` made it `linear_corr_flipped[0]` as lowest.
-    # Let's re-verify: `np.poly1d([a,b,c])` creates `ax^2+bx+c`. So `np.flip` makes `c` the first element.
-    # So `linear_corr_flipped[0]` is the constant term.
-    
-    corrected_signal = linear_corr_flipped[0, cp.newaxis, :, :].copy() # shape (1, Y, X) -> broadcast to (T, Y, X)
-    
-    # Add terms for x^1, x^2, ...
-    # Iterate through polynomial powers from 1 up to poly_order
-    for k in range(1, poly_order + 1):
-        # Coefficients for x^k are at linear_corr_flipped[k]
-        # Need to ensure correct indexing after flip.
-        # If original order was [c_N, c_N-1, ..., c_1, c_0] for $c_N x^N + ... + c_0$
-        # And after flip it's [c_0, c_1, ..., c_N-1, c_N]
-        # Then linear_corr_flipped[k] is the coefficient for $x^k$.
-        corrected_signal += linear_corr_flipped[k, cp.newaxis, :, :] * (clean_signal ** k)
 
     return corrected_signal
 
@@ -192,13 +163,6 @@ def clean_dark(signal: cp.ndarray, dead: cp.ndarray, dark: cp.ndarray, dt: cp.nd
     # Apply dead mask to dark frame, set masked values to NaN
     dark_masked = dark.copy().astype(cp.float64)
     dark_masked[dead_mask] = cp.nan
-
-    # Broadcast dark_masked across time dimension for subtraction
-    # dt is (time,) so we need to align dimensions for multiplication
-    # dark_masked is (Y, X)
-    # signal is (Time, Y, X)
-    # dt[:, cp.newaxis, cp.newaxis] makes dt into (Time, 1, 1) allowing broadcasting
-    signal -= dark_masked[cp.newaxis, :, :] * dt[:, cp.newaxis, cp.newaxis]
     return signal
 
 # STEP 5
