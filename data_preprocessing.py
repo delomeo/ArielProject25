@@ -1,7 +1,5 @@
-# %%writefile data_transforms_gpu.py
-
+# %%writefile data_preprocessing.py
 import cupy as cp
-
 # NOTE: The original sigma_clip_numba is fundamentally a CPU-optimized function
 # that relies on dynamic array resizing and selection (data[mask]).
 # A direct, high-performance CuPy/CUDA kernel equivalent is complex to write
@@ -211,6 +209,7 @@ def correct_flat_field(flat: cp.ndarray, dead: cp.ndarray, signal: cp.ndarray) -
     # signal is (batch, time, Y, X)
     # flat_masked is (Y, X)
     # Use cp.newaxis to add batch and time dimensions to flat_masked
-    signal = signal / flat_masked[cp.newaxis, cp.newaxis, :, :]
+    flat_masked = flat_masked[cp.newaxis, :, :]
+    signal = signal / flat_masked
     
     return signal
