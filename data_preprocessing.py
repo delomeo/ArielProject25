@@ -24,8 +24,9 @@ def sigma_clip_gpu(data: cp.ndarray, sigma: float = 3.0, maxiters: int = 5) -> c
     Returns:
         clipped_data (cp.ndarray): Array with outliers replaced by NaN.
     """
+
     # Make a writable copy if input is not already
-    clipped_data = data.copy()
+    clipped_data = cp.copy(data)
     
     # Initialize mask for valid data (not NaN initially)
     mask = ~cp.isnan(clipped_data)
@@ -123,6 +124,10 @@ def clean_dark(signal: cp.ndarray, dead: cp.ndarray, dark: cp.ndarray, dt: cp.nd
     # Apply dead mask to dark frame, set masked values to NaN
     dark_masked = dark.copy().astype(cp.float64)
     dark_masked[dead_mask] = cp.nan
+    # dark_masked = cp.tile(dark_masked, (signal.shape[0], 1, 1))
+    dt = dt.ravel()  # Flatten dt to 1D for broadcasting
+    dt = dt[:, cp.newaxis, cp.newaxis]
+    signal -= dark_masked* dt
     return signal
 
 # STEP 5
