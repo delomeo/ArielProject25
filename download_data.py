@@ -15,22 +15,25 @@ from kaggle.api.kaggle_api_extended import KaggleApi
 api = KaggleApi()
 api.authenticate()
 
-# List all files in the competition
-files = api.competition_list_files('ariel-data-challenge-2025').files
+output = 'data'  # Directory to save downloaded files
+if not os.path.exists(output):
+    os.makedirs(output)
 
-# Download all files, preserving folder structure
-for f in files:
-    # Retain the same structure as on Kaggle
-    file_path = os.path.join('data', f.name)
-    os.makedirs(os.path.dirname(file_path), exist_ok=True)
+# Fetch all files using pagination
+all_files = []
 
-    # Download the file
-    print(f"Downloading {f.name}...")
-    api.competition_download_file('ariel-data-challenge-2025', f.name, path=os.path.dirname(file_path))
-    print(f"Downloaded {f.name} to {file_path}")
 
-# Use glob to index all downloaded files and subfolders
-downloaded_files = glob.glob('data/**/*', recursive=True)
-print("Downloaded files and folders:")
-for file in downloaded_files:
-    print(file)
+page_size = 200  # Adjust page size as needed
+
+files = api.competition_list_files('ariel-data-challenge-2025', page_size=page_size).files
+
+for file in files[:100]: # Adjust the range as needed
+    file_path = os.path.join(output, file.name)
+    if not os.path.exists(file_path):
+        print(f"Downloading {file.name}...")
+        os.makedirs(os.path.dirname(file_path), exist_ok=True)
+        api.competition_download_file('ariel-data-challenge-2025', file.name, path=file_path)
+    else:
+        print(f"File {file.name} already exists. Skipping download.")
+        
+        
