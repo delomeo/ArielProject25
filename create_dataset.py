@@ -14,21 +14,21 @@ from data_preprocessing import (ADC_convert, mask_hot_dead, apply_linear_corr, c
 
 def get_index(files, chunk_size, interval) -> cp.ndarray:
     start, stop = interval[0], interval[1]
+    
     idxs = []
     for f in files[start:stop]:
         name = os.path.basename(f)
         parts = name.split('_')
-        if parts[:3] == ["AIRS-CH0","signal","0.parquet"]:
+        if parts[:3] == ["AIRS-CH0","calibration","0"]:
             idxs.append(int(os.path.basename(os.path.dirname(f))))
     idxs = cp.sort(cp.array(idxs))
     return cp.array_split(idxs, max(1, len(idxs)//chunk_size))
-
 
 def load_data (file, chunk_size, nb_files) -> cp.ndarray: 
     data0 = cp.load(file + '_0.npy')
     data_all = cp.zeros((nb_files*chunk_size, data0.shape[1], data0.shape[2], data0.shape[3]))
     data_all[:chunk_size] = data0
-    for i in range (1, nb_files) : 
+    for i in range (1, nb_files): 
         data_all[i*chunk_size:(i+1)*chunk_size] = cp.load(file + '_{}.npy'.format(i))
     return data_all 
 
@@ -44,155 +44,146 @@ def create_dir(path) -> None:
     else:
         print(f"Directory {path} already exists. Skipping creation.")
 
-
-def main():
-    
-    global path_folder, path_out, output_dir
-
-    ## CONFIGURATION ##
-    config = load_config()
-
-    # Fetch paths from config
+def load_and_process_chunk(index_chunk, config, axis_info, train_test='train') -> Tuple[cp.ndarray, cp.ndarray]:
+    """
+    Loads and processes a chunk of data for both AIRS and FGS instruments.
+    """
     path_folder = config['PATH_FOLDER']
-    path_out = config['PATH_OUT']
-    output_dir = config['OUTPUT_DIR']
-    
-    create_dir(path_out) # Create output directory if it doesn't exist
-
-    # Fetch additional configurations
-    global CHUNKS_SIZE, DO_MASK, DO_THE_NL_CORR, DO_DARK, DO_FLAT, TIME_BINNING
-    CHUNKS_SIZE = config.get('CHUNKS_SIZE', 1)
-    DO_MASK = config.get('DO_MASK', True)
-    DO_THE_NL_CORR = config.get('DO_THE_NL_CORR', False)
-    DO_DARK = config.get('DO_DARK', True)
-    DO_FLAT = config.get('DO_FLAT', True)
-    TIME_BINNING = config.get('TIME_BINNING', None) # TODO: If none, do not use time binning, else use the value provided (default is 30)
-    INTERVAL = config.get('INTERVAL', [0, 1])  # Default interval for indexing (Default loads from 0 to 1, but can be changed in config.yaml)
-
-
-    ## START OF THE MAIN CODE ##
-    if not os.path.exists(path_out):
-        os.makedirs(path_out)
-        print(f"Directory {path_out} created.")
-    else:
-        print(f"Directory {path_out} already exists.")
-
-    files = glob.glob(os.path.join(path_folder + 'train/', '*/*'))
-
-    index = get_index(files, CHUNKS_SIZE, INTERVAL)  
-
-    axis_info = pd.read_parquet(os.path.join(path_folder,'axis_info.parquet'))
-
     cut_inf, cut_sup = config.get('CUT_INF', 39), config.get('CUT_SUP', 321)
     l = cut_sup - cut_inf
+    chunk_size = len(index_chunk)
 
-    for n, index_chunk in enumerate(tqdm(index)):
-        AIRS_CH0_clean = cp.zeros((CHUNKS_SIZE, 11250, 32, l))
-        FGS1_clean = cp.zeros((CHUNKS_SIZE, 135000, 32, 32))
-        
-        for i in range (CHUNKS_SIZE) : 
-            df = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/AIRS-CH0_signal_0.parquet'))
-            signal = df.values.astype(cp.float64).reshape((df.shape[0], 32, 356))
+    # Pre-allocate GPU memory for the entire chunk
+    # AIRS
+    # TODO: Allocate space in memory if certain transformations are needed 
+    all_airs_signals = cp.empty((chunk_size, 11250, 32, l), dtype=cp.float64)
+    all_airs_deads = cp.empty((chunk_size, 32, l), dtype=cp.float64)
+    all_airs_darks = cp.empty((chunk_size, 32, l), dtype=cp.float64)
+    all_airs_flats = cp.empty((chunk_size, 32, l), dtype=cp.float64)
+    if config.get('DO_THE_NL_CORR', False):
+        all_airs_linear_corrs = cp.empty((chunk_size, 6, 32, l), dtype=cp.float64)
 
-            signal = ADC_convert(signal,)
-            dt_airs = axis_info['AIRS-CH0-integration_time'].dropna().values
-            dt_airs[1::2] += 0.1
-            chopped_signal = signal[:, :, cut_inf:cut_sup]
-            del signal, df
-            
-            # CLEANING THE DATA: AIRS
-            flat = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/AIRS-CH0_calibration_0/flat.parquet')).values.astype(cp.float64).reshape((32, 356))[:, cut_inf:cut_sup]
-            dark = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/AIRS-CH0_calibration_0/dark.parquet')).values.astype(cp.float64).reshape((32, 356))[:, cut_inf:cut_sup]
-            dead_airs = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/AIRS-CH0_calibration_0/dead.parquet')).values.astype(cp.float64).reshape((32, 356))[:, cut_inf:cut_sup]
-            linear_corr = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/AIRS-CH0_calibration_0/linear_corr.parquet')).values.astype(cp.float64).reshape((6, 32, 356))[:, :, cut_inf:cut_sup]
-            
-            if DO_MASK:
-                chopped_signal = mask_hot_dead(chopped_signal, dead_airs, dark)
-                AIRS_CH0_clean[i] = chopped_signal
-            else:
-                AIRS_CH0_clean[i] = chopped_signal
-                
-            if DO_THE_NL_CORR: 
-                linear_corr_signal = apply_linear_corr(linear_corr,AIRS_CH0_clean[i])
-                AIRS_CH0_clean[i,:, :, :] = linear_corr_signal
-            del linear_corr
-            
-            if DO_DARK: 
-                cleaned_signal = clean_dark(AIRS_CH0_clean[i], dead_airs, dark, dt_airs)
-                AIRS_CH0_clean[i] = cleaned_signal
-            else: 
-                pass
-            del dark
-            
-            df = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/FGS1_signal_0.parquet'))
-            fgs_signal = df.values.astype(cp.float64).reshape((df.shape[0], 32, 32))
+    # FGS1
+    # TODO: Allocate space in memory if certain transformations are needed 
+    all_fgs_signals = cp.empty((chunk_size, 135000, 32, 32), dtype=cp.float64)
+    all_fgs_deads = cp.empty((chunk_size, 32, 32), dtype=cp.float64)
+    all_fgs_darks = cp.empty((chunk_size, 32, 32), dtype=cp.float64)
+    all_fgs_flats = cp.empty((chunk_size, 32, 32), dtype=cp.float64)
+    if config.get('DO_THE_NL_CORR', False):
+        all_fgs_linear_corrs = cp.empty((chunk_size, 6, 32, 32), dtype=cp.float64)
 
-            
-            fgs_signal = ADC_convert(fgs_signal, )
-            dt_fgs1 = cp.ones(len(fgs_signal))*0.1
-            dt_fgs1[1::2] += 0.1
-            chopped_FGS1 = fgs_signal
-            del fgs_signal, df
-            
-            # CLEANING THE DATA: FGS1
-            flat = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/FGS1_calibration_0/flat.parquet')).values.astype(cp.float64).reshape((32, 32))
-            dark = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/FGS1_calibration_0/dark.parquet')).values.astype(cp.float64).reshape((32, 32))
-            dead_fgs1 = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/FGS1_calibration_0/dead.parquet')).values.astype(cp.float64).reshape((32, 32))
-            linear_corr = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/FGS1_calibration_0/linear_corr.parquet')).values.astype(cp.float64).reshape((6, 32, 32))
-            
-            if DO_MASK:
-                chopped_FGS1 = mask_hot_dead(chopped_FGS1, dead_fgs1, dark)
-                FGS1_clean[i] = chopped_FGS1
-            else:
-                FGS1_clean[i] = chopped_FGS1
+    # Load all data for the chunk from disk first
+    for i, idx in enumerate(index_chunk):
+        # AIRS data
+        df_airs = pd.read_parquet(os.path.join(path_folder, f'{train_test}/{idx}/AIRS-CH0_signal_0.parquet'))
+        all_airs_signals[i] = cp.asarray(df_airs.values.reshape((df_airs.shape[0], 32, 356))[:, :, cut_inf:cut_sup])
+        
+        calib_path_airs = os.path.join(path_folder, f'{train_test}/{idx}/AIRS-CH0_calibration_0')
+        all_airs_darks[i] = cp.asarray(pd.read_parquet(os.path.join(calib_path_airs, 'dark.parquet')).values.reshape((32, 356))[:, cut_inf:cut_sup])
+        all_airs_deads[i] = cp.asarray(pd.read_parquet(os.path.join(calib_path_airs, 'dead.parquet')).values.reshape((32, 356))[:, cut_inf:cut_sup])
+        all_airs_flats[i] = cp.asarray(pd.read_parquet(os.path.join(calib_path_airs, 'flat.parquet')).values.reshape((32, 356))[:, cut_inf:cut_sup])
+        if config.get('DO_THE_NL_CORR', False):
+            all_airs_linear_corrs[i] = cp.asarray(pd.read_parquet(os.path.join(calib_path_airs, 'linear_corr.parquet')).values.reshape((6, 32, 356))[:, :, cut_inf:cut_sup])
 
-            if DO_THE_NL_CORR: 
-                linear_corr_signal = apply_linear_corr(linear_corr,FGS1_clean[i])
-                FGS1_clean[i,:, :, :] = linear_corr_signal
-            del linear_corr
-            
-            if DO_DARK: 
-                cleaned_signal = clean_dark(FGS1_clean[i], dead_fgs1, dark,dt_fgs1)
-                FGS1_clean[i] = cleaned_signal
-            else: 
-                pass
-            del dark
-            
-        # SAVE DATA AND FREE SPACE
-        AIRS_cds = get_cds(AIRS_CH0_clean)
-        FGS1_cds = get_cds(FGS1_clean)
-        
-        del AIRS_CH0_clean, FGS1_clean
-        
-        ## (Optional) Time Binning to reduce space
-        if TIME_BINNING:
-            AIRS_cds_binned = bin_obs(AIRS_cds,binning=30)
-            FGS1_cds_binned = bin_obs(FGS1_cds,binning=30*12)
-        else:
-            AIRS_cds = AIRS_cds.transpose(0,1,3,2) ## this is important to make it consistent for flat fielding, but you can always change it
-            AIRS_cds_binned = AIRS_cds
-            FGS1_cds = FGS1_cds.transpose(0,1,3,2)
-            FGS1_cds_binned = FGS1_cds
-        
-        del AIRS_cds, FGS1_cds
-        
-        for i in range (CHUNKS_SIZE):
-            flat_airs = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/AIRS-CH0_calibration_0/flat.parquet')).values.astype(cp.float64).reshape((32, 356))[:, cut_inf:cut_sup]
-            flat_fgs = pd.read_parquet(os.path.join(path_folder,f'train/{index_chunk[i]}/FGS1_calibration_0/flat.parquet')).values.astype(cp.float64).reshape((32, 32))
-            if DO_FLAT:
-                corrected_AIRS_cds_binned = correct_flat_field(flat_airs,dead_airs, AIRS_cds_binned[i])
-                AIRS_cds_binned[i] = corrected_AIRS_cds_binned
-                corrected_FGS1_cds_binned = correct_flat_field(flat_fgs,dead_fgs1, FGS1_cds_binned[i])
-                FGS1_cds_binned[i] = corrected_FGS1_cds_binned
-            else:
-                pass
+        # FGS1 data
+        df_fgs = pd.read_parquet(os.path.join(path_folder, f'{train_test}/{idx}/FGS1_signal_0.parquet'))
+        all_fgs_signals[i] = cp.asarray(df_fgs.values.reshape((df_fgs.shape[0], 32, 32)))
 
-        ## save data
-        cp.save(os.path.join(path_out, 'AIRS_clean_train_{}.npy'.format(n)), AIRS_cds_binned)
-        cp.save(os.path.join(path_out, 'FGS1_train_{}.npy'.format(n)), FGS1_cds_binned)
-        del AIRS_cds_binned
-        del FGS1_cds_binned
+        calib_path_fgs = os.path.join(path_folder, f'{train_test}/{idx}/FGS1_calibration_0')
+        all_fgs_darks[i] = cp.asarray(pd.read_parquet(os.path.join(calib_path_fgs, 'dark.parquet')).values.reshape((32, 32)))
+        all_fgs_deads[i] = cp.asarray(pd.read_parquet(os.path.join(calib_path_fgs, 'dead.parquet')).values.reshape((32, 32)))
+        all_fgs_flats[i] = cp.asarray(pd.read_parquet(os.path.join(calib_path_fgs, 'flat.parquet')).values.reshape((32, 32)))
+        if config.get('DO_THE_NL_CORR', False):
+            all_fgs_linear_corrs[i] = cp.asarray(pd.read_parquet(os.path.join(calib_path_fgs, 'linear_corr.parquet')).values.reshape((6, 32, 32)))
+
+    # Process AIRS chunk
+    airs_clean = ADC_convert(all_airs_signals)
+    if config.get('DO_MASK', True):
+        airs_clean = mask_hot_dead(airs_clean, all_airs_deads, all_airs_darks)
+    if config.get('DO_THE_NL_CORR', False):
+        airs_clean = apply_linear_corr(all_airs_linear_corrs, airs_clean)
+    if config.get('DO_DARK', True):
+        dt_airs = (axis_info['AIRS-CH0-integration_time'].dropna().values)
+        # dt_airs = dt_airs[~cp.any(cp.isnan(dt_airs), axis=0)]
+        dt_airs[1::2] += 0.1  # Adjust for even/odd integration times
+        dt_airs = cp.asarray(dt_airs, dtype=cp.float64)
+
+        airs_clean = clean_dark(airs_clean, all_airs_deads, all_airs_darks, dt_airs)
+    
+    airs_cds = get_cds(airs_clean)
+    del airs_clean, all_airs_signals, all_airs_darks # Free memory
+    
+    if config.get('DO_FLAT', True):
+        airs_cds = correct_flat_field(all_airs_flats, all_airs_deads, airs_cds)
+    del all_airs_flats, all_airs_deads
+
+    # Process FGS1 chunk
+    fgs_clean = ADC_convert(all_fgs_signals)
+    if config.get('DO_MASK', True):
+        fgs_clean = mask_hot_dead(fgs_clean, all_fgs_deads, all_fgs_darks)
+    if config.get('DO_THE_NL_CORR', False):
+        fgs_clean = apply_linear_corr(all_fgs_linear_corrs, fgs_clean)
+    if config.get('DO_DARK', True):
+        dt_fgs1 = cp.ones(fgs_clean.shape[1]) * 0.1
+        dt_fgs1[1::2] += 0.1
+        fgs_clean = clean_dark(fgs_clean, all_fgs_deads, all_fgs_darks, dt_fgs1)
+
+    fgs_cds = get_cds(fgs_clean)
+    del fgs_clean, all_fgs_signals, all_fgs_darks # Free memory
+
+    if config.get('DO_FLAT', True):
+        fgs_cds = correct_flat_field(all_fgs_flats, all_fgs_deads, fgs_cds)
+    del all_fgs_flats, all_fgs_deads
+
+    # Time Binning
+    if config.get('TIME_BINNING'):
+        airs_cds_binned = bin_obs(airs_cds, binning=30)
+        fgs_cds_binned = bin_obs(fgs_cds, binning=30 * 12)
+    else:
+        airs_cds_binned = airs_cds.transpose(0, 1, 3, 2)
+        fgs_cds_binned = fgs_cds.transpose(0, 1, 3, 2)
+        
+    return airs_cds_binned, fgs_cds_binned
+
+def main():
+    config = load_config()
+
+    path_folder = config['PATH_FOLDER']
+    path_out = config['PATH_OUT']
+    tmp_path = config['OUTPUT_DIR']
+    
+    create_dir(path_out)
+    create_dir(tmp_path)
+    
+    train_test = config['TRAIN_TEST']
+    CHUNKS_SIZE = config.get('CHUNKS_SIZE', 1)
+    INTERVAL = config.get('INTERVAL', [0, 1])
+
+    files = glob.glob(os.path.join(path_folder, f'{train_test}/*/'))
+    index_chunks = get_index(files, CHUNKS_SIZE, INTERVAL)  
+    axis_info = pd.read_parquet(os.path.join(path_folder, 'axis_info.parquet'))
+
+    for n, index_chunk in enumerate(tqdm(index_chunks, desc="Processing Chunks")):
+        
+        AIRS_binned, FGS1_binned = load_and_process_chunk(index_chunk, config, axis_info)
+
+        # Save data
+        cp.save(os.path.join(tmp_path, f'AIRS_clean_train_{n}.npy'), AIRS_binned)
+        cp.save(os.path.join(tmp_path, f'FGS1_train_{n}.npy'), FGS1_binned)
+        
+        # Clean up GPU memory after each chunk
+        del AIRS_binned, FGS1_binned
+        mempool = cp.get_default_memory_pool()
+        mempool.free_all_blocks()
+
+        print(f"Chunk {n} processed and saved.")
+
+    data_train_AIRS = load_data(tmp_path + 'AIRS_clean_train', CHUNKS_SIZE, len(index_chunks))
+    data_train_FGS = load_data(tmp_path + 'FGS1_train', CHUNKS_SIZE, len(index_chunks))
+    np.save(path_out+ 'data_train_AIRS.npy', data_train_AIRS)
+    np.save(path_out + 'data_train_FGS.npy', data_train_FGS)
+    
+    print("All chunks processed successfully.")
 
 if __name__ == "__main__":
     main()
-    print("Dataset creation completed successfully.")
