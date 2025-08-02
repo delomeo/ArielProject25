@@ -15,14 +15,21 @@ from data_preprocessing import (ADC_convert, mask_hot_dead, apply_linear_corr, c
 def get_index(files, chunk_size, interval) -> cp.ndarray:
     start, stop = interval[0], interval[1]
     
-    idxs = []
-    for f in files[start:stop]:
-        name = os.path.basename(f)
-        parts = name.split('_')
-        if parts[:3] == ["AIRS-CH0","calibration","0"]:
-            idxs.append(int(os.path.basename(os.path.dirname(f))))
-    idxs = cp.sort(cp.array(idxs))
-    return cp.array_split(idxs, max(1, len(idxs)//chunk_size))
+    # Extract unique parent folder numbers
+    idxs = set()
+    for f in files:
+        parent_folder = os.path.basename(os.path.dirname(f))
+        if parent_folder.isdigit():  # Ensure the folder name is numeric
+            idxs.add(int(parent_folder))
+    
+    # Convert to a sorted list
+    idxs = sorted(idxs)
+    
+    # Slice the indices based on the interval
+    idxs = idxs[start:stop]
+    
+    # Split indices into chunks
+    return cp.array_split(cp.array(idxs), max(1, len(idxs) // chunk_size))
 
 def load_data (file, chunk_size, nb_files) -> cp.ndarray: 
     data0 = cp.load(file + '_0.npy')
