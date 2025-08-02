@@ -9,56 +9,6 @@ import cupy as cp
 # If performance for sigma_clip is critical, consider finding a pre-optimized
 # CuPy-based sigma clip, or writing a custom CUDA kernel using Numba's CUDA capabilities.
 
-# def sigma_clip_gpu(data: cp.ndarray, sigma: float = 3.0, maxiters: int = 5) -> cp.ndarray:
-#     """
-#     Custom CuPy-compatible sigma clipping using NaN masking.
-#     This version returns an array with clipped values replaced by NaN.
-#     It simulates the iterative clipping process on the GPU.
-
-#     Parameters:
-#         data (cp.ndarray): 1D array of values on GPU.
-#         sigma (float): Clipping threshold.
-#         maxiters (int): Maximum number of iterations.
-#     Returns:
-#         clipped_data (cp.ndarray): Array with outliers replaced by NaN.
-#     """
-
-#     # Make a writable copy if input is not already
-#     clipped_data = cp.copy(data)
-    
-    # Initialize mask for valid data (not NaN initially)
-    mask = ~cp.isnan(clipped_data)
-
-    for _ in range(maxiters):
-        # Get current valid data for median/std calculation
-        temp_data = clipped_data[mask]
-
-        if temp_data.size == 0:
-            break
-
-        median = cp.median(temp_data)
-        std = cp.std(temp_data)
-
-        if std == 0: # Avoid division by zero if all values are the same
-            break
-
-        # Calculate bounds on GPU
-        lower_bound = median - sigma * std
-        upper_bound = median + sigma * std
-
-        # Update mask: values within bounds are kept, others are marked for clipping
-        new_mask = (clipped_data >= lower_bound) & (clipped_data <= upper_bound)
-        
-        # If the mask hasn't changed, we've converged
-        if cp.all(new_mask == mask):
-            break
-        
-        # Apply the new mask by setting outliers to NaN
-        clipped_data[~new_mask] = cp.nan
-        mask = new_mask # Update mask for next iteration
-
-    return clipped_data
-
 # STEP 1
 def ADC_convert(signal: cp.ndarray, gain: float = 0.4369, offset: float = -1000) -> cp.ndarray:
     '''
