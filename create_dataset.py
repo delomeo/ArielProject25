@@ -145,6 +145,29 @@ def load_and_process_chunk(index_chunk, config, axis_info, train_test='train') -
         
     return airs_cds_binned, fgs_cds_binned
 
+def compress_and_save(folder: str = [], data: str = '', output: str = 'output.npz') -> None: 
+    """
+    Compresses data in a single archize and saves it.
+    """
+    if data == '':
+        raise ValueError("Data name must be provided.")
+    
+    files = glob.glob(os.path.join(folder, f'{data}_*.npy'))
+    arrays = {}
+    for file in files:
+        name = os.path.basename(file).replace('.npy', '')
+        arrays[name] = cp.load(file)
+    
+    # Save as a compressed .npz file
+    cp.savez_compressed(output, **arrays)
+    print(f"Data saved to {output}.")
+    # Clean up GPU memory
+    mempool = cp.get_default_memory_pool()
+    mempool.free_all_blocks()
+    print("GPU memory cleaned up.")
+    del arrays, files
+    # os.remove(files)  # Optionally remove individual files after saving
+
 def main():
     config = load_config()
 
