@@ -189,7 +189,7 @@ def main():
     CHUNKS_SIZE = config.get('CHUNKS_SIZE', 1)
     INTERVAL = config.get('INTERVAL', [0, 1])
 
-    files = glob.glob(os.path.join(path_folder, f'{train_test}/*/'))
+    files = glob.glob(os.path.join(path_folder, f'{train_test}/*/*'))
     index_chunks = get_index(files, CHUNKS_SIZE, INTERVAL)  
     axis_info = pd.read_parquet(os.path.join(path_folder, 'axis_info.parquet'))
 
@@ -199,7 +199,7 @@ def main():
 
         # Save data
         cp.save(os.path.join(tmp_path, f'AIRS_clean_train_{n}.npy'), AIRS_binned)
-        cp.save(os.path.join(tmp_path, f'FGS1_train_{n}.npy'), FGS1_binned)
+        cp.save(os.path.join(tmp_path, f'FGS1_clean_train_{n}.npy'), FGS1_binned)
         
         # Clean up GPU memory after each chunk
         del AIRS_binned, FGS1_binned
@@ -213,7 +213,7 @@ def main():
     print(f"Data compressed and saved to {tmp_path}.")
 
     
-    print("All chunks processed successfully.")
+    print("DONE PROCESSING!")
 
 if __name__ == "__main__":
     main()
