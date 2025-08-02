@@ -72,18 +72,30 @@ def ADC_convert(signal: cp.ndarray, gain: float = 0.4369, offset: float = -1000)
     return signal
 
 # STEP 2
-def mask_hot_dead(signal: cp.ndarray, dead: cp.ndarray, dark: cp.ndarray, sigma: float = 5.0, maxiters: int = 5, dynamic_clip: bool = True) -> cp.ndarray:
+def mask_hot_dead(signal: cp.ndarray, dead: cp.ndarray, dark: cp.ndarray, sigma: float = 5.0, maxiters: int = 5) -> cp.ndarray:
+    '''
+    Masks hot and dead pixels in the signal using CuPy.
+    Assumes signal is (batch, timestep, y, x), dead is (y, x), and dark is (y, x).
+    '''
+    
+    hot = sigma_clip_gpu(dark, sigma, maxiters)  # Shape: (y, x)
 
-    hot = sigma_clip_gpu(dark, sigma, maxiters)
-    hot = cp.tile(hot, (signal.shape[0], 1, 1))
-    dead = cp.tile(dead, (signal.shape[0], 1, 1))
-    # print(hot.shape)
-    print(dead.shape) 
-    print(signal.shape)
+    # # Convert hot and dead masks to cupy arrays again
+    # hot = cp.asarray(hot, dtype=cp.bool_)  # Convert to boolean mask
+    # dead = cp.asarray(dead, dtype=cp.bool_)  # Convert to boolean mask
+
+    hot = hot[:, cp.newaxis, :, :]
+    hot = cp.broadcast_to(hot, signal.shape)      # Now it's broadcastable!
+
+    # Broadcast hot and dead to match the shape of signal
+    dead = dead[:, cp.newaxis, :, :]
+    dead = cp.broadcast_to(dead, signal.shape)
+
+    # Apply masks to the signal using broadcasting
     signal = cp.where(dead, cp.nan, signal)  # Set dead pixels to NaN
     signal = cp.where(hot, cp.nan, signal)  # Set hot pixels to NaN
-    return signal
 
+    return signal
 
 # STEP 3
 def apply_linear_corr(linear_corr: cp.ndarray, clean_signal: cp.ndarray) -> cp.ndarray:
