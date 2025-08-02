@@ -4,3 +4,4 @@ download_data.py
 /__pycache__/
 /data_light_raw/
 /data_test/
+/test/
