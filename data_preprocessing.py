@@ -9,22 +9,22 @@ import cupy as cp
 # If performance for sigma_clip is critical, consider finding a pre-optimized
 # CuPy-based sigma clip, or writing a custom CUDA kernel using Numba's CUDA capabilities.
 
-def sigma_clip_gpu(data: cp.ndarray, sigma: float = 3.0, maxiters: int = 5) -> cp.ndarray:
-    """
-    Custom CuPy-compatible sigma clipping using NaN masking.
-    This version returns an array with clipped values replaced by NaN.
-    It simulates the iterative clipping process on the GPU.
+# def sigma_clip_gpu(data: cp.ndarray, sigma: float = 3.0, maxiters: int = 5) -> cp.ndarray:
+#     """
+#     Custom CuPy-compatible sigma clipping using NaN masking.
+#     This version returns an array with clipped values replaced by NaN.
+#     It simulates the iterative clipping process on the GPU.
 
-    Parameters:
-        data (cp.ndarray): 1D array of values on GPU.
-        sigma (float): Clipping threshold.
-        maxiters (int): Maximum number of iterations.
-    Returns:
-        clipped_data (cp.ndarray): Array with outliers replaced by NaN.
-    """
+#     Parameters:
+#         data (cp.ndarray): 1D array of values on GPU.
+#         sigma (float): Clipping threshold.
+#         maxiters (int): Maximum number of iterations.
+#     Returns:
+#         clipped_data (cp.ndarray): Array with outliers replaced by NaN.
+#     """
 
-    # Make a writable copy if input is not already
-    clipped_data = cp.copy(data)
+#     # Make a writable copy if input is not already
+#     clipped_data = cp.copy(data)
     
     # Initialize mask for valid data (not NaN initially)
     mask = ~cp.isnan(clipped_data)
