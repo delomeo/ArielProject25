@@ -201,10 +201,10 @@ def main():
 
         print(f"Chunk {n} processed and saved.")
 
-    data_train_AIRS = load_data(tmp_path + 'AIRS_clean_train', CHUNKS_SIZE, len(index_chunks))
-    data_train_FGS = load_data(tmp_path + 'FGS1_train', CHUNKS_SIZE, len(index_chunks))
-    np.save(path_out+ 'data_train_AIRS.npy', data_train_AIRS)
-    np.save(path_out + 'data_train_FGS.npy', data_train_FGS)
+    compress_and_save(tmp_path, data='AIRS_clean_train', output=os.path.join(path_out, 'AIRS_clean_train.npz'))
+    compress_and_save(tmp_path, data='FGS1_clean_train', output=os.path.join(path_out, 'FGS1_clean_train.npz'))
+    print(f"Data compressed and saved to {tmp_path}.")
+
     
     print("All chunks processed successfully.")
 
